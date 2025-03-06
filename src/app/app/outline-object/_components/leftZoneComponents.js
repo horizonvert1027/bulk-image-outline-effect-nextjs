@@ -5,6 +5,7 @@ import { fabric } from 'fabric';
 import { resizeImageBlob } from '@/util/commonFunctions';
 import { handleDragOver, handleDragLeave, handleDrop } from '@/util/coreFunctions';
 import { BTN_CONTENT } from "@/util/constants"
+import { applyOutlineEffectToRawImage, getImageOutline } from "@/util/ImageCompress";
 
 export default function LeftZoneComponent({
     id,
@@ -26,6 +27,7 @@ export default function LeftZoneComponent({
     let acceptFormats = "image/jpeg, image/png, image/webp"
     let acceptFormatsContent = "jpeg, png, webp images allowed"
     const [isDragging, setIsDragging] = useState(false)
+    const [replaceId, setReplaceId] = useState(null);
     const generateId = () => Math.random().toString(36).substr(2, 9);
 
     const colCount = 3;
@@ -34,13 +36,14 @@ export default function LeftZoneComponent({
         columns[index % colCount].push(item);
     });
 
+    const maxOutlineValue = 20;
     // 处理文件选择
-    const handleMultipleFileChange = async (selectedMultipleImageFiles) => {
+    const handleMultipleFileChange = async (files, replaceFileId = null) => {
         let multipleFileUrls = [];
         const validFileTypes = acceptFormats.split(', ');
 
-        for (let i = 0; i < selectedMultipleImageFiles.length; i++) {
-            let file = selectedMultipleImageFiles[i];
+        for (let i = 0; i < files.length; i++) {
+            let file = files[i];
             if (file) {
                 if (!validFileTypes.includes(file.type)) {
                     setMessageInfo({
@@ -54,27 +57,42 @@ export default function LeftZoneComponent({
                         message: t("too_many_files"),
                         messageType: "info",
                     });
-                    break; // Ignore extra selectedMultipleImageFiles if there are more than 20
+                    break; // Ignore extra files if there are more than 20
                 }
                 const previewImage = await resizeImageBlob(file); // 预览图片1000px
+                const imageOutline = await getImageOutline(previewImage); // Get Outline path from the preview image
+                
                 const originalImage = file;
                 const previewImageUrl = URL.createObjectURL(previewImage); // Create a URL for the file
                 const originalImageUrl = URL.createObjectURL(originalImage); // Create a URL for the file
-                multipleFileUrls.push({
+                const data = {
                     filename: file.name,
-                    file: file, url: originalImageUrl, previewUrl: previewImageUrl,
-                    resultUrl: null, previewResultUrl: null, taskID: null,
-                    id: generateId(),
+                    file: file, 
+                    url: originalImageUrl, 
+                    previewUrl: previewImageUrl,
+                    resultUrl: null, 
+                    previewResultUrl: null,
+                    outlines: imageOutline,
+                    taskID: null,
+                    id: replaceFileId || generateId(),
                     fabricCanvas: null,
                     containerRef: null
-                });
+                };
+                if (replaceFileId) {
+                    const index = selectedMultipleImageFiles.findIndex(_ => _.id == replaceFileId);
+                    if (index != -1) {
+                        selectedMultipleImageFiles[index] = data;
+                    }
+                } else {
+                    multipleFileUrls.push(data);
+                }
             }
         }
 
-        setSelectedMultipleImageFiles(multipleFileUrls);
+        setSelectedMultipleImageFiles([...selectedMultipleImageFiles, ...multipleFileUrls]);
         document.getElementById(`fileInput-${id}`).value = "";
         setResultedFileUrls(null);
-        setBtnContent(BTN_CONTENT(t, function_type).original);
+        setBtnContent(BTN_CONTENT(t, function_type).download);
     };
 
     // 处理删除
@@ -101,33 +119,42 @@ export default function LeftZoneComponent({
     };
 
     // Apply blur effect
-    const applyOutlineEffect = (img, outlineValue, outlineColor) => {
-        const canvas = document.createElement('canvas');
+    const applyOutlineEffect = (file, outlineValue, outlineColor) => {
+        console.log('applyOutlineEffect')
+        const img = file.fabricCanvas.getObjects('image')[0];
 
-        const ctx = canvas.getContext('2d');
-        const imageElement = img.getElement();
-    
-        canvas.width = imageElement.width + outlineValue * 2;
-        canvas.height = imageElement.height + outlineValue * 2;
-    
-        // const offsets = [-1, -1, 0, -1, 1, -1, -1, 0, 1, 0, -1, 1, 0, 1, 1, 1];
-        const scale = outlineValue;
-    
-        // Draw images at offsets from the array scaled by scale
-        ctx.drawImage(imageElement, canvas.width / 2, canvas.height / 2);
-    
-        // Fill with outline color
-        ctx.globalCompositeOperation = "source-in";
-        ctx.fillStyle = outlineColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-        // Draw original image in normal mode
-        ctx.globalCompositeOperation = "source-over";
-        ctx.drawImage(imageElement, outlineValue, outlineValue);
-    
-        // Update the fabric image with the new canvas content
-        img.setElement(canvas);
-        img.applyFilters();
+        // Remove all outline polyline
+        file.fabricCanvas.getObjects().forEach(obj => {
+            if (obj.dataId == 'outlineEffect') {
+                file.fabricCanvas.remove(obj);
+            }
+        })
+
+        const scale = Math.min((300 - maxOutlineValue * 2) / img.width, 1);
+        if (file.outlines) {
+            file.outlines.forEach(outlinePath => {
+                const outline = new fabric.Polyline(outlinePath, {
+                    stroke: outLineColor || 'red',
+                    strokeWidth: outlineValue * 2,
+                    fill: '', // No fill
+                    selectable: false,
+                    evented: false,
+                    objectCaching: false,
+                    strokeLineCap: 'round', // Round line caps
+                    strokeLineJoin: 'round', // Rounded corners
+                    originX: 'center',
+                    originY: 'center',
+                    dataId: 'outlineEffect'
+                });
+                outline.set({
+                    left: outline.left * scale + 18, 
+                    top: outline.top * scale + 18
+                });
+                outline.scale(scale);
+                file.fabricCanvas.add(outline);
+                file.fabricCanvas.sendToBack(outline);
+            });
+        }
     };
 
     // 初始化 Fabric 画布
@@ -144,12 +171,34 @@ export default function LeftZoneComponent({
                 });
 
                 fabric.Image.fromURL(file.previewUrl, async img => {
-                    const scale = Math.min(300 / img.width, 1);
-                    fabricCanvas.setWidth(img.width * scale);
-                    fabricCanvas.setHeight(img.height * scale);
+                    const scale = Math.min((300 - maxOutlineValue * 2) / img.width, 1);
+                    fabricCanvas.setWidth(300);
+                    fabricCanvas.setHeight(300);
+                    img.set({
+                        left: img.left + maxOutlineValue, 
+                        top: img.top + maxOutlineValue,
+                        id: 'outlineImage'
+                    });
                     img.scale(scale);
                     img.selectable = false
                     fabricCanvas.add(img);
+
+                    const dottedRect = new fabric.Rect({
+                        left: maxOutlineValue,       // X position
+                        top: maxOutlineValue,        // Y position
+                        width: 300 - maxOutlineValue * 2,     // Width of the rectangle
+                        height: 300 - maxOutlineValue * 2,    // Height of the rectangle
+                        fill: '',       // No fill
+                        stroke: 'lightgray', // Border color
+                        strokeWidth: 1, // Border thickness
+                        strokeDashArray: [10, 5], // Dotted line pattern (10px line, 5px space)
+                        selectable: false, // Allow selection and movement
+                        evented: false // Enable events like drag
+                    });
+                    
+                    // Add the rectangle to the canvas
+                    fabricCanvas.add(dottedRect);
+                    
                 });
 
                 setSelectedMultipleImageFiles(prev =>
@@ -170,8 +219,8 @@ export default function LeftZoneComponent({
         selectedMultipleImageFiles.forEach(file => {
             if (file.fabricCanvas) {
                 const img = file.fabricCanvas.getObjects('image')[0];
-                if (img) {
-                    applyOutlineEffect(img, outLineValue, outLineColor);
+                if (img && file.outlines) {
+                    applyOutlineEffect(file, outLineValue, outLineColor);
                     file.fabricCanvas.renderAll();
                 }
             }
@@ -192,33 +241,25 @@ export default function LeftZoneComponent({
         }
     }, [resultedFileUrls])
 
-    const handleDownloadImage = async (url, filename = resultedFileName) => {
+    const handleDownloadImage = async (file) => {
         try {
-            if (bgRemoverBackgroundColor != null) {
-                console.log(`==background=`, bgRemoverBackgroundColor)
-                url = await drawImageWithBackground(url, bgRemoverBackgroundColor)
-            }
-            const response = await fetch(url)
-            if (!response.ok) throw new Error("Network response was not ok.")
-            const blob = await response.blob()
-            const downloadUrl = window.URL.createObjectURL(blob)
-            const link = document.createElement("a")
-            link.href = downloadUrl
-            // const filename = url.split('/').pop() || 'downloaded-image';
-            console.log(filename, "filename")
-            link.setAttribute("download", filename)
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-            window.URL.revokeObjectURL(downloadUrl) // Clean up the URL object
+            const img = await applyOutlineEffectToRawImage(file, outLineValue, outLineColor)
+            // Create a download link
+            console.log(img)
+            const downloadLink = document.createElement("a");
+            downloadLink.href = img.imgData;
+            downloadLink.download = `${img.fileName || "download"}.png`; // Set file name
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink); // Cleanup
         } catch (error) {
             console.error("Download failed:", error)
         }
     }
 
-    const handleRemoveFromMultipleImages = (index) => {
+    const handleRemoveFromMultipleImages = (fid) => {
         setSelectedMultipleImageFiles((prevFiles) => {
-            const updatedFiles = prevFiles.filter((_, i) => i !== index);
+            const updatedFiles = prevFiles.filter((_, i) => _.id !== fid);
             if (updatedFiles.length === 0) {
                 clearAll();
             }
@@ -226,26 +267,39 @@ export default function LeftZoneComponent({
         });
     };
 
-    const renderMultipleEditButton = (index) => {
+    const handleReplaceImage = (fid) => {
+        setReplaceId(fid);
+        document.getElementById(`fileInput-${id}-replace`).click()
+    }
+
+    const renderMultipleEditButton = (file) => {
         return (
             <div className="inline-flex absolute top-2 right-2 z-10 gap-x-2">
-                {resultedFileUrls && (
-                    <button
-                        className="p-2 bg-neutral-100/[0.8] hover:bg-neutral-200 dark:bg-neutral-700 hover:dark:bg-neutral-800 rounded-full"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            handleDownloadImage(selectedMultipleImageFiles[index].resultUrl, selectedMultipleImageFiles[index].filename)
-                        }}
-                        disabled={isLoading}
-                    >
-                        download
-                    </button>
-                )}
                 <button
                     className="p-2 bg-neutral-100/[0.8] hover:bg-neutral-200 dark:bg-neutral-700 hover:dark:bg-neutral-800 rounded-full"
                     onClick={(e) => {
                         e.stopPropagation()
-                        handleRemoveFromMultipleImages(index)
+                        handleDownloadImage(file)
+                    }}
+                    disabled={isLoading}
+                >
+                    download
+                </button>
+                <button
+                    className="p-2 bg-neutral-100/[0.8] hover:bg-neutral-200 dark:bg-neutral-700 hover:dark:bg-neutral-800 rounded-full"
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        handleReplaceImage(file.id)
+                    }}
+                    disabled={isLoading}
+                >
+                    Replace
+                </button>
+                <button
+                    className="p-2 bg-neutral-100/[0.8] hover:bg-neutral-200 dark:bg-neutral-700 hover:dark:bg-neutral-800 rounded-full"
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        handleRemoveFromMultipleImages(file.id)
                     }}
                     disabled={isLoading}
                 >
@@ -262,7 +316,7 @@ export default function LeftZoneComponent({
             onDragOver={(e) => handleDragOver(e, setIsDragging)}
             onDragLeave={(e) => handleDragLeave(e, setIsDragging)}
             onDrop={(e) => handleDrop(e, setIsDragging, function_type, handleMultipleFileChange)}
-            onClick={() => document.getElementById(`fileInput-${id}`).click()}
+            onClick={() => selectedMultipleImageFiles.length == 0 && document.getElementById(`fileInput-${id}`).click()}
         >
             <input
                 type="file"
@@ -273,27 +327,40 @@ export default function LeftZoneComponent({
                 multiple={true}
                 disabled={isLoading || resultedFileUrls}
             />
+            <input
+                type="file"
+                id={`fileInput-${id}-replace`}
+                onChange={(e) => handleMultipleFileChange(e.target.files, replaceId)}
+                style={{ display: "none" }}
+                accept={acceptFormats}
+                disabled={isLoading || resultedFileUrls}
+            />
 
             {selectedMultipleImageFiles != null && selectedMultipleImageFiles.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                     {columns.map((colItems, colIndex) => (
                         <div key={colIndex} className="w-full h-full gap-y-2 flex flex-wrap items-top content-start justify-center">
                             {colItems.map((file, index) => (
-                                <div key={index} className="relative">
+                                <div key={index} className="relative" data-test={colIndex}>
                                     <div
                                         key={file.id}
-                                        className="relative flex flex-col justify-center items-center w-full rounded-lg border border-neutral-100 dark:border-neutral-700"
+                                        className="relative flex flex-col justify-center items-center w-full rounded-lg border border-neutral-300 dark:border-neutral-700"
                                         // style={{ width: '300px' }}
                                         ref={el => {
                                             // 将容器挂载到 DOM
                                             if (el && file.containerRef && !el.contains(file.containerRef)) {
-                                                el.appendChild(file.containerRef);
+                                                // Check if there is an existing child
+                                                if (el.firstChild) {
+                                                    el.replaceChild(file.containerRef, el.firstChild);
+                                                } else {
+                                                    el.appendChild(file.containerRef); // If no child exists, append new one
+                                                }                                                
                                             }
                                         }}
                                     >
 
                                     </div>
-                                    {renderMultipleEditButton(index)}
+                                    {renderMultipleEditButton(file)}
                                 </div>
                             ))}
                         </div>

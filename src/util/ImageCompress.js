@@ -454,3 +454,180 @@ export function base64ToFile(base64String, filename = "file", mimeType = "") {
 //   const file = base64ToFile(base64String, 'example.png', 'image/png');
 
 //   console.log(file); // 输出 File 对象
+
+
+// get outline from image
+function getIndex(x, y, width) {
+    return (y * width + x) * 4; // Each pixel has RGBA channels
+}
+
+function isOpaque(imageData, x, y, width, height) {
+    if (x < 0 || x >= width || y < 0 || y >= height) return false;
+    return imageData.data[getIndex(x, y, width) + 3] > 10; // Alpha > 10 means non-transparent
+}
+
+function findConnectedComponents(imageData, width, height) {
+    const visited = new Array(width * height).fill(false);
+    const objects = [];
+
+    function floodFill(x, y, points) {
+        const stack = [[x, y]];
+        while (stack.length > 0) {
+            const [cx, cy] = stack.pop();
+            const index = cy * width + cx;
+            if (visited[index] || !isOpaque(imageData, cx, cy, width, height)) continue;
+
+            visited[index] = true;
+            points.push({ x: cx, y: cy });
+
+            // Check 4-way neighbors
+            stack.push([cx + 2, cy]);
+            stack.push([cx - 2, cy]);
+            stack.push([cx, cy + 2]);
+            stack.push([cx, cy - 2]);
+        }
+    }
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const index = y * width + x;
+            if (!visited[index] && isOpaque(imageData, x, y, width, height)) {
+                const points = [];
+                floodFill(x, y, points);
+                if (points && points.length > 1) {
+                    objects.push(points);
+                }
+            }
+        }
+    }
+
+    return objects;
+}
+
+function traceOutline(imageData, objectPoints, width, height) {
+    const visited = new Set();
+    const directions = [
+        [2, 0], [0, 2], [-2, 0], [0, -2], // Right, Down, Left, Up
+        [2, 2], [-2, 2], [-2, -2], [2, -2] // Diagonals
+    ];
+
+    let outline = [];
+
+    function isEdgePixel(x, y) {
+        if (!isOpaque(imageData, x, y, width, height)) return false;
+        return directions.some(([dx, dy]) => !isOpaque(imageData, x + dx, y + dy, width, height));
+    }
+
+    const edgePixels = objectPoints.filter(({ x, y }) => isEdgePixel(x, y));
+
+    if (edgePixels.length === 0) return [];
+
+    let startX = edgePixels[0].x, startY = edgePixels[0].y;
+    let x = startX, y = startY;
+    let first = true;
+
+    while (true) {
+        outline.push({ x, y });
+        visited.add(`${x},${y}`);
+
+        let foundNext = false;
+        for (let i = 0; i < directions.length; i++) {
+            const [dx, dy] = directions[i];
+            const nx = x + dx, ny = y + dy;
+
+            if (isEdgePixel(nx, ny) && !visited.has(`${nx},${ny}`)) {
+                x = nx;
+                y = ny;
+                foundNext = true;
+                break;
+            }
+        }
+
+        if (!foundNext) break; // If no next edge pixel is found, stop tracing
+
+        if (!first && x === startX && y === startY) break; // Stop when we complete the loop
+        first = false;
+    }
+
+    return outline;
+}
+
+export function getImageOutline(file) {
+    return new Promise((resolve, reject) => {
+        const objectURL = URL.createObjectURL(file);
+        fabric.Image.fromURL(objectURL, function (img) {
+            const tempCanvas = document.createElement('canvas');
+            const ctx = tempCanvas.getContext('2d');
+        
+            tempCanvas.width = img.width + 10;
+            tempCanvas.height = img.height + 10;
+        
+            ctx.drawImage(img.getElement(), 5, 5);
+            const imageData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        
+            // Detect separate objects
+            const objects = findConnectedComponents(imageData, tempCanvas.width, tempCanvas.height);
+            console.log(`Found ${objects.length} separate objects`);
+        
+            const outlines = objects.map(points => {
+                return traceOutline(imageData, points, tempCanvas.width, tempCanvas.height);
+            });
+        
+            // Clean up object URL
+            URL.revokeObjectURL(objectURL);
+
+            resolve(outlines);
+        })
+    })
+
+}
+
+export function applyOutlineEffectToRawImage(file, outLineValue, outLineColor) {
+    return new Promise((resolve, reject) => {
+        const url = file.url;
+        const outlines = file.outlines;
+
+        fabric.Image.fromURL(url, function (img) {
+            // Create an offscreen canvas
+            const canvasEl = document.createElement("canvas");
+            canvasEl.width = img.width;
+            canvasEl.height = img.height;
+
+            const fabricCanvas = new fabric.Canvas(canvasEl, {
+                willReadFrequently: true,
+                backgroundColor: "#fff"
+            });
+
+            // Add outlines
+            outlines.forEach(outlinePath => {
+                const line = new fabric.Polyline(outlinePath, {
+                    stroke: outLineColor || 'red',
+                    strokeWidth: outLineValue * 2,
+                    fill: "", // No fill
+                    selectable: false,
+                    evented: false,
+                    objectCaching: false,
+                    strokeLineCap: "round",
+                    strokeLineJoin: "round",
+                    originX: "center",
+                    originY: "center"
+                });
+                line.set({
+                    left: line.left - 3, 
+                    top: line.top - 3
+                });                        
+                fabricCanvas.add(line);
+            });
+
+            // Add image and render
+            fabricCanvas.add(img);
+            fabricCanvas.renderAll();
+
+            // Convert to Data URL
+            setTimeout(() => {
+                const imgData = fabricCanvas.toDataURL("image/png");
+                resolve({ fileName: `${file.filename}-outline.png`, imgData });
+            }, 100); // Small delay for rendering
+        });
+    });
+};

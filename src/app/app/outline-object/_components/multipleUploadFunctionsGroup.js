@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl"
 import MessageToast from "@/components/messageToast"
 import { BTN_CONTENT } from "@/util/constants"
 import { saveAs } from "@/util/commonFunctions"
+import { applyOutlineEffectToRawImage } from "@/util/ImageCompress";
 
 
 const FunctionsGroup = ({ function_type, function_name, slug = "", defaultImageList = null }) => {
@@ -28,7 +29,7 @@ const FunctionsGroup = ({ function_type, function_name, slug = "", defaultImageL
     const checkStatusCounter = useRef(0)
     const [bgRemoverBackgroundColor, setBgRemoverBackgroundColor] = useState(null)
     const [outLineValue, setOutLineValue] = useState(0)
-    const [outLineColor, setOutLineColor] = useState(1)
+    const [outLineColor, setOutLineColor] = useState('#f5d565')
     /////////////////////////////////////////////////
 
     const [messageInfo, setMessageInfo] = useState({
@@ -41,7 +42,7 @@ const FunctionsGroup = ({ function_type, function_name, slug = "", defaultImageL
     const renderRightEditZone = (function_name) => {
         switch (function_name) {
             case 'blur_background':
-                return <RightZoneBackgroundRemover outLineValue={outLineValue} setOutLineValue={setOutLineValue} setOutLineColor={setOutLineColor} />;
+                return <RightZoneBackgroundRemover outLineValue={outLineValue} setOutLineValue={setOutLineValue} outLineColor={outLineColor} setOutLineColor={setOutLineColor} />;
             default:
                 return null;
         }
@@ -50,10 +51,26 @@ const FunctionsGroup = ({ function_type, function_name, slug = "", defaultImageL
 
 
     const downloadZipAll = async () => {
+        setBtnContent(BTN_CONTENT(t).processing);
         const zip = new JSZip();
-
-        zip.generateAsync({ type: "blob" }).then((content) => {
+        const folder = zip.folder("vheer_bg_remover");
+    
+        // Process all images in parallel
+        const imageProcessingPromises = selectedMultipleImageFiles.map(file =>
+            applyOutlineEffectToRawImage(file, outLineValue, outLineColor)
+        );
+    
+        const processedImages = await Promise.all(imageProcessingPromises);
+    
+        // Add images to ZIP folder
+        processedImages.forEach(({ fileName, imgData }) => {
+            folder.file(fileName, imgData.split(",")[1], { base64: true });
+        });
+    
+        // Generate and download ZIP
+        zip.generateAsync({ type: "blob" }).then(content => {
             saveAs(content, "vheer_bg_remover.zip");
+            setBtnContent(BTN_CONTENT(t).download);
         });
     };
 
@@ -70,9 +87,9 @@ const FunctionsGroup = ({ function_type, function_name, slug = "", defaultImageL
         checkStatusCounter.current = 0;
     }
 
-    const [outlineSize, setOutlineSize] = useState(5);
-    const [outlineColor, setOutlineColor] = useState('#ff0000');
-
+    const handleClickFileUploadBtn = () => {
+            document.getElementById(`fileInput-1`).click();
+    }
     return (
         <>
             {messageInfo.message && <MessageToast messageInfo={messageInfo} clearMessage={clearMessage} />}
@@ -93,21 +110,20 @@ const FunctionsGroup = ({ function_type, function_name, slug = "", defaultImageL
                                 setSelectedMultipleImageFiles={setSelectedMultipleImageFiles}
                                 clearAll={clearAll}
                                 outLineValue={outLineValue} 
-                                outLineColor={'#f5d565'}/>
+                                outLineColor={outLineColor}/>
                         </div>
                         <div className="relative md:flex-1 h-[320px] bg-accent/90 pl-3 h-full rounded-lg flex flex-col justify-between bg-white dark:bg-neutral-800">
                             <div className="flex flex-col pr-2 h-full">
                                 {renderRightEditZone(function_name)}
                             </div>
                             <div className="py-4 pr-3">
-                                <button disabled={isLoading} onClick={() => {
-                                    if (results) {
-                                        downloadZipAll();
-                                    } else {
-                                        check2Upload();
-                                    }
-                                }} type="button" className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-amber-300 dark:bg-violet-600 text-black dark:text-white font-semibold hover:bg-amber-400 dark:hover:bg-violet-700 disabled:opacity-50 disabled:pointer-events-none">
-                                    <div className="inline-flex items-center justify-center tracking-wide font-semibold">btnContent</div>
+                                { selectedMultipleImageFiles.length > 0 && (
+                                    <button onClick={() => handleClickFileUploadBtn()} type="button" className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-amber-300 dark:bg-violet-600 text-black dark:text-white font-semibold hover:bg-amber-400 dark:hover:bg-violet-700 disabled:opacity-50 disabled:pointer-events-none mb-2">
+                                        <div className="inline-flex items-center justify-center tracking-wide font-semibold">Upload More Images</div>
+                                    </button>
+                                )}
+                                <button disabled={isLoading || selectedMultipleImageFiles.length == 0} onClick={() => downloadZipAll()} type="button" className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-amber-300 dark:bg-violet-600 text-black dark:text-white font-semibold hover:bg-amber-400 dark:hover:bg-violet-700 disabled:opacity-50 disabled:pointer-events-none">
+                                    <div className="inline-flex items-center justify-center tracking-wide font-semibold">{btnContent}</div>
                                 </button>
                                 <button disabled={isLoading} onClick={() => clearAll()} type="button" className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-xs hover:opacity-80 text-neutral-800 dark:text-neutral-400 font-semibold disabled:opacity-50 disabled:pointer-events-none">
                                     <div className="inline-flex items-center justify-center tracking-wide font-semibold">Clear all</div>
