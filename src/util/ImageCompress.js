@@ -626,7 +626,7 @@ export function applyOutlineEffectToRawImage(file, outLineValue, outLineColor) {
             // Convert to Data URL
             setTimeout(() => {
                 const imgData = fabricCanvas.toDataURL("image/png");
-                resolve({ fileName: `${file.filename}-outline.png`, imgData });
+                resolve({ filename: `${file.filename.slice(0, file.filename.lastIndexOf('.'))}-${file.id}.png`, imgData });
             }, 100); // Small delay for rendering
         });
     });

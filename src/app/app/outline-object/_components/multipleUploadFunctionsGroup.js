@@ -63,8 +63,8 @@ const FunctionsGroup = ({ function_type, function_name, slug = "", defaultImageL
         const processedImages = await Promise.all(imageProcessingPromises);
     
         // Add images to ZIP folder
-        processedImages.forEach(({ fileName, imgData }) => {
-            folder.file(fileName, imgData.split(",")[1], { base64: true });
+        processedImages.forEach(({ filename, imgData }) => {
+            folder.file(filename, imgData.split(",")[1], { base64: true });
         });
     
         // Generate and download ZIP

@@ -248,7 +248,7 @@ export default function LeftZoneComponent({
             console.log(img)
             const downloadLink = document.createElement("a");
             downloadLink.href = img.imgData;
-            downloadLink.download = `${img.fileName || "download"}.png`; // Set file name
+            downloadLink.download = `${img.filename || "download"}.png`; // Set file name
             document.body.appendChild(downloadLink);
             downloadLink.click();
             document.body.removeChild(downloadLink); // Cleanup
