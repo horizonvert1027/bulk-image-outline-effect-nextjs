@@ -586,7 +586,7 @@ export function applyOutlineEffectToRawImage(file, outLineValue, outLineColor) {
     return new Promise((resolve, reject) => {
         const url = file.url;
         const outlines = file.outlines;
-        const maxOutlineValue = 20;
+        const maxOutlineValue = outLineValue * 1;
         fabric.Image.fromURL(url, function (img) {
             // Create an offscreen canvas
             const canvasEl = document.createElement("canvas");
