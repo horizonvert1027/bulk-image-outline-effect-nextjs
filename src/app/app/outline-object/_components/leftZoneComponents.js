@@ -130,7 +130,10 @@ export default function LeftZoneComponent({
             }
         })
 
-        const scale = Math.min((300 - maxOutlineValue * 2) / img.width, 1);
+        let scale = Math.min((300 - maxOutlineValue * 2) / img.width, 1);
+        if (img.height > img.width) {
+            scale = Math.min((300 - maxOutlineValue * 2) / img.height, 1);
+        }
         if (file.outlines) {
             file.outlines.forEach(outlinePath => {
                 const outline = new fabric.Polyline(outlinePath, {
@@ -147,8 +150,8 @@ export default function LeftZoneComponent({
                     dataId: 'outlineEffect'
                 });
                 outline.set({
-                    left: outline.left * scale + 18, 
-                    top: outline.top * scale + 18
+                    left: outline.left * scale + 18 + (260 - img.width * scale) / 2, 
+                    top: outline.top * scale + 18 + (260 - img.height * scale) / 2
                 });
                 outline.scale(scale);
                 file.fabricCanvas.add(outline);
@@ -171,29 +174,37 @@ export default function LeftZoneComponent({
                 });
 
                 fabric.Image.fromURL(file.previewUrl, async img => {
-                    const scale = Math.min((300 - maxOutlineValue * 2) / img.width, 1);
+                    let scale = Math.min((300 - maxOutlineValue * 2) / img.width, 1);
+                    if (img.height > img.width) {
+                        scale = Math.min((300 - maxOutlineValue * 2) / img.height, 1);
+                    }
+
                     fabricCanvas.setWidth(300);
                     fabricCanvas.setHeight(300);
                     img.set({
-                        left: img.left + maxOutlineValue, 
-                        top: img.top + maxOutlineValue,
-                        id: 'outlineImage'
+                        // stroke: 'gray',
+                        // strokeWidth: 1,
+                        left: img.left  + maxOutlineValue + (300 - maxOutlineValue * 2) / 2, 
+                        top: img.top  + maxOutlineValue + (300 - maxOutlineValue * 2) / 2,
+                        id: 'outlineImage',
+                        originX: 'center', 
+                        originY: 'center'
                     });
                     img.scale(scale);
                     img.selectable = false
                     fabricCanvas.add(img);
 
                     const dottedRect = new fabric.Rect({
-                        left: maxOutlineValue,       // X position
-                        top: maxOutlineValue,        // Y position
-                        width: 300 - maxOutlineValue * 2,     // Width of the rectangle
-                        height: 300 - maxOutlineValue * 2,    // Height of the rectangle
-                        fill: '',       // No fill
-                        stroke: 'lightgray', // Border color
-                        strokeWidth: 1, // Border thickness
-                        strokeDashArray: [10, 5], // Dotted line pattern (10px line, 5px space)
-                        selectable: false, // Allow selection and movement
-                        evented: false // Enable events like drag
+                        left: maxOutlineValue,      
+                        top: maxOutlineValue,       
+                        width: 300 - maxOutlineValue * 2,    
+                        height: 300 - maxOutlineValue * 2,   
+                        fill: '',      
+                        stroke: 'lightgray',
+                        strokeWidth: 1,
+                        strokeDashArray: [10, 5],
+                        selectable: false,
+                        evented: false
                     });
                     
                     // Add the rectangle to the canvas
@@ -245,7 +256,6 @@ export default function LeftZoneComponent({
         try {
             const img = await applyOutlineEffectToRawImage(file, outLineValue, outLineColor)
             // Create a download link
-            console.log(img)
             const downloadLink = document.createElement("a");
             downloadLink.href = img.imgData;
             downloadLink.download = `${img.filename || "download"}.png`; // Set file name

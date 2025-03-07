@@ -586,18 +586,22 @@ export function applyOutlineEffectToRawImage(file, outLineValue, outLineColor) {
     return new Promise((resolve, reject) => {
         const url = file.url;
         const outlines = file.outlines;
-
+        const maxOutlineValue = 20;
         fabric.Image.fromURL(url, function (img) {
             // Create an offscreen canvas
             const canvasEl = document.createElement("canvas");
-            canvasEl.width = img.width;
-            canvasEl.height = img.height;
+            canvasEl.width = img.width + maxOutlineValue * 2;
+            canvasEl.height = img.height + maxOutlineValue * 2;
 
             const fabricCanvas = new fabric.Canvas(canvasEl, {
                 willReadFrequently: true,
                 backgroundColor: "#fff"
             });
 
+            img.set({
+                left: img.left  + maxOutlineValue, 
+                top: img.top  + maxOutlineValue
+            });
             // Add outlines
             outlines.forEach(outlinePath => {
                 const line = new fabric.Polyline(outlinePath, {
@@ -613,14 +617,28 @@ export function applyOutlineEffectToRawImage(file, outLineValue, outLineColor) {
                     originY: "center"
                 });
                 line.set({
-                    left: line.left - 3, 
-                    top: line.top - 3
+                    left: line.left - 4.5 + maxOutlineValue, 
+                    top: line.top - 4.5 + maxOutlineValue
                 });                        
                 fabricCanvas.add(line);
             });
 
             // Add image and render
             fabricCanvas.add(img);
+
+            // const dottedRect = new fabric.Rect({
+            //     left: maxOutlineValue,       
+            //     top: maxOutlineValue,        
+            //     width: img.width,     
+            //     height: img.height,    
+            //     fill: '',       
+            //     stroke: 'lightgray', 
+            //     strokeWidth: 1, 
+            //     strokeDashArray: [10, 5], 
+            //     selectable: false, 
+            //     evented: false 
+            // });
+            // fabricCanvas.add(dottedRect);
             fabricCanvas.renderAll();
 
             // Convert to Data URL
