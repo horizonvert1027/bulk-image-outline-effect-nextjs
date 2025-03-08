@@ -481,10 +481,10 @@ function findConnectedComponents(imageData, width, height) {
             points.push({ x: cx, y: cy });
 
             // Check 4-way neighbors
-            stack.push([cx + 2, cy]);
-            stack.push([cx - 2, cy]);
-            stack.push([cx, cy + 2]);
-            stack.push([cx, cy - 2]);
+            stack.push([cx + 1, cy]);
+            stack.push([cx - 1, cy]);
+            stack.push([cx, cy + 1]);
+            stack.push([cx, cy - 1]);
         }
     }
 
@@ -507,8 +507,8 @@ function findConnectedComponents(imageData, width, height) {
 function traceOutline(imageData, objectPoints, width, height) {
     const visited = new Set();
     const directions = [
-        [2, 0], [0, 2], [-2, 0], [0, -2], // Right, Down, Left, Up
-        [2, 2], [-2, 2], [-2, -2], [2, -2] // Diagonals
+        [1, 0], [0, 1], [-1, 0], [0, -1],
+        [1, 1], [-1, 1], [-1, -1], [1, -1]
     ];
 
     let outline = [];
@@ -525,23 +525,41 @@ function traceOutline(imageData, objectPoints, width, height) {
     let startX = edgePixels[0].x, startY = edgePixels[0].y;
     let x = startX, y = startY;
     let first = true;
+    let loopCount = 0;
 
     while (true) {
         outline.push({ x, y });
         visited.add(`${x},${y}`);
 
         let foundNext = false;
-        for (let i = 0; i < directions.length; i++) {
-            const [dx, dy] = directions[i];
-            const nx = x + dx, ny = y + dy;
 
-            if (isEdgePixel(nx, ny) && !visited.has(`${nx},${ny}`)) {
-                x = nx;
-                y = ny;
-                foundNext = true;
-                break;
+        outerLoop:
+        for (let i = 0; i < 50; i++) {
+            // Loop The 8-way search if the outline cut off
+            if (!foundNext) {
+                if (i > 0) {
+                    const xy = outline.pop();
+                    if (!xy) break;
+                    x = xy.x; y = xy.y;
+                }
+                for (const [dx, dy] of directions) {
+                    const nx = x + dx, ny = y + dy;
+                    if (isEdgePixel(nx, ny) && !visited.has(`${nx},${ny}`)) {
+                        x = nx;
+                        y = ny;
+                        foundNext = true;
+                        break outerLoop;
+                    }
+                    if (Math.abs(startX - nx) < 2 && Math.abs(startY - ny) < 2 && loopCount > 25) {
+                        // console.log('end - start', nx, ny, startX, startY)
+                        break outerLoop;
+                    }
+                }
             }
         }
+
+        loopCount++;
+        if (loopCount > edgePixels.length * 2) break; // Safety check to avoid infinite loops
 
         if (!foundNext) break; // If no next edge pixel is found, stop tracing
 
