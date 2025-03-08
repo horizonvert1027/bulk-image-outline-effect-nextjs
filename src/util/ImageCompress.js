@@ -3,6 +3,8 @@
  * @Date: 2023-05-10 23:39:50
  * @LastEditors: wzp 623301600@qq.com
  * @LastEditTime: 2024-10-28 21:56:37
+ * @LastEditors: Volo success.together0303@gmail.com
+ * @LastEditTime: 2025-03-08 21:56:37
  * @FilePath: /swapanything-nextjs/src/util/ImageCompress.js
  * @Description:
  *
@@ -494,7 +496,7 @@ function findConnectedComponents(imageData, width, height) {
             if (!visited[index] && isOpaque(imageData, x, y, width, height)) {
                 const points = [];
                 floodFill(x, y, points);
-                if (points && points.length > 1) {
+                if (points && points.length > 150) {
                     objects.push(points);
                 }
             }
@@ -585,6 +587,7 @@ export function getImageOutline(file) {
         
             // Detect separate objects
             const objects = findConnectedComponents(imageData, tempCanvas.width, tempCanvas.height);
+            // console.log(objects)
             console.log(`Found ${objects.length} separate objects`);
         
             const outlines = objects.map(points => {
