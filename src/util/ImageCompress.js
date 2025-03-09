@@ -623,8 +623,21 @@ export function applyOutlineEffectToRawImage(file, outLineValue, outLineColor) {
                 left: img.left  + maxOutlineValue, 
                 top: img.top  + maxOutlineValue
             });
+            let scale = 1;
+            if (img.width > 1000 || img.height > 1000) {
+                if (img.width > img.height) {
+                    scale = img.width / 1000;
+                } else {
+                    scale = img.height / 1000;
+                }
+            }
             // Add outlines
             outlines.forEach(outlinePath => {
+                if (scale > 1) {
+                    outlinePath = outlinePath.map(line => {
+                        return {x: line.x * scale, y: line.y * scale};
+                    })
+                }
                 const line = new fabric.Polyline(outlinePath, {
                     stroke: outLineColor || 'red',
                     strokeWidth: outLineValue * 2,
@@ -638,9 +651,9 @@ export function applyOutlineEffectToRawImage(file, outLineValue, outLineColor) {
                     originY: "center"
                 });
                 line.set({
-                    left: line.left - 4.5 + maxOutlineValue, 
-                    top: line.top - 4.5 + maxOutlineValue
-                });                        
+                    left: line.left - 4.5 * scale + maxOutlineValue, 
+                    top: line.top - 4.5 * scale + maxOutlineValue
+                });
                 fabricCanvas.add(line);
             });
 
