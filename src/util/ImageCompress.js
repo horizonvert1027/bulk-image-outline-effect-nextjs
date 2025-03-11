@@ -458,7 +458,7 @@ export function base64ToFile(base64String, filename = "file", mimeType = "") {
 //   console.log(file); // 输出 File 对象
 
 
-// get outline from image
+// Volo - Get outlines from image
 function getIndex(x, y, width) {
     return (y * width + x) * 4; // Each pixel has RGBA channels
 }
@@ -683,3 +683,4 @@ export function applyOutlineEffectToRawImage(file, outLineValue, outLineColor) {
         });
     });
 };
+// Volo - End get outlines from image

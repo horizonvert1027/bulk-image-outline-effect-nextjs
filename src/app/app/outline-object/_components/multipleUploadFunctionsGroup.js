@@ -49,7 +49,7 @@ const FunctionsGroup = ({ function_type, function_name, slug = "", defaultImageL
     };
 
 
-
+    // Volo - Download Images As Zip
     const downloadZipAll = async () => {
         setBtnContent(BTN_CONTENT(t).processing);
         const zip = new JSZip();

@@ -118,7 +118,7 @@ export default function LeftZoneComponent({
         }
     };
 
-    // Apply blur effect
+    // Volo - Apply blur effect
     const applyOutlineEffect = (file, outlineValue, outlineColor) => {
         console.log('applyOutlineEffect')
         const img = file.fabricCanvas.getObjects('image')[0];
@@ -252,6 +252,7 @@ export default function LeftZoneComponent({
         }
     }, [resultedFileUrls])
 
+    //Volo - Download Individual Image
     const handleDownloadImage = async (file) => {
         try {
             const img = await applyOutlineEffectToRawImage(file, outLineValue, outLineColor)
@@ -391,7 +392,10 @@ export default function LeftZoneComponent({
                         <p className="text-xs opacity-80">{acceptFormatsContent}</p>
                         <div className="mt-8">
                             <span className="text-sm text-neutral-500 dark:text-neutral-400">
-                                {t("no_picture")}
+                                Thanks, Shane Steven
+                            </span><br></br>
+                            <span className="text-sm text-neutral-500 dark:text-neutral-400">
+                                If you experiencing any issues, please contact me by email. Volo
                             </span>
                         </div>
                     </div>

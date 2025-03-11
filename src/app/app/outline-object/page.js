@@ -13,6 +13,12 @@ export default function Page() {
                 <div className='max-w-screen-xl mx-auto pb-[2rem] flex flex-col text-center'>
                     <FunctionsGroup  function_type={function_type} function_name={function_name}/>
                 </div>
+                <div className='text-center'>
+                    <p className='text-center'>
+                        Contact: Volodymyr Burlaka
+                    </p>
+                    <a href="mailto:volodymyrburlaka048@gmail.com">volodymyrburlaka048@gmail.com</a>
+                </div>
             </div>
         </>
     );
