@@ -536,7 +536,7 @@ function traceOutline(imageData, objectPoints, width, height) {
         let foundNext = false;
 
         outerLoop:
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 500; i++) {
             // Loop The 8-way search if the outline cut off
             if (!foundNext) {
                 if (i > 0) {
